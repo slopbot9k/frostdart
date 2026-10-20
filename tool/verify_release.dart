@@ -93,11 +93,11 @@ Future<void> main(List<String> args) async {
     }
   }
   if (mismatches == 0) {
-    stdout.writeln('All ${libraries(wanted.length)} match native-$version.');
+    stdout.writeln('Every library matches native-$version.');
   } else {
     fail(
-      '$mismatches of ${libraries(wanted.length)} differ from '
-      'native-$version.',
+      '${libraries(mismatches)} ${mismatches == 1 ? 'differs' : 'differ'} '
+      'from native-$version.',
     );
   }
 }
