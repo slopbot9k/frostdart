@@ -13,5 +13,6 @@ dependencies:
 
 dev_dependencies:
   test: ^1.26.3
+  crypto: ^3.0.7
   ffigen: ^21.0.0
   flutter_lints: ^2.0.0

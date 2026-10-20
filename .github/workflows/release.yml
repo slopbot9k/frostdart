@@ -18,8 +18,11 @@ jobs:
           sdk: '3.13.0'
       - uses: dtolnay/rust-toolchain@1.99.1
       - run: dart pub get --no-example
-      - run: dart analyze lib test hook
+      - run: dart analyze lib test hook tool
       - run: dart test
+      - name: Build twice from different directories and compare
+        shell: bash
+        run: tool/ci_annotate.sh "two-directory check" dart run tool/check_reproducibility.dart
       - name: Rust tests
         if: matrix.os == 'ubuntu-24.04'
         working-directory: src/serai/hrf
