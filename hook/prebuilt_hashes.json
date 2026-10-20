@@ -1,5 +1,17 @@
 {
-  "nativeVersion": null,
-  "releaseUrl": null,
-  "files": {}
+  "nativeVersion": "0.0.1",
+  "releaseUrl": "https://github.com/slopbot9k/frostdart/releases/download/native-0.0.1",
+  "files": {
+    "aarch64-apple-darwin/libhrf_api.dylib": "8e045f2c8cb59cafd5e4695b3aa598664867bbef5bd3aab3d0656909e5c008b7",
+    "aarch64-apple-ios-sim/libhrf_api.dylib": "b7f4efe3be8a6ec84bd9f263e88700db1bd3841b5e53334d0d85775d002f8b48",
+    "aarch64-apple-ios/libhrf_api.dylib": "7cd636c2a5a5ddafea0337a8821b9912e947db74bb71f719b67e8c50bb62ed51",
+    "aarch64-linux-android/libhrf_api.so": "17c4aaa8659efc92ee37abd8d040e73b4cca34fc404776ac266bfe6be2150525",
+    "aarch64-unknown-linux-gnu/libhrf_api.so": "f2c083c7bf06b3c03fc268136bd0e1a9b3f6d683041106eac38af322d897fa38",
+    "armv7-linux-androideabi/libhrf_api.so": "6a0f91a0d6f1964744011cf8e68258f9123b7cce335fc5edbe1aa2546ce02a84",
+    "x86_64-apple-darwin/libhrf_api.dylib": "87b452d346ca0ce3cdf31617f32962734bbb196575bc1b5005c560fa876fd81c",
+    "x86_64-apple-ios/libhrf_api.dylib": "3e38ef0841411af1f078d5aa19da270b8ee006204c4a94a0356f0136195e64d7",
+    "x86_64-linux-android/libhrf_api.so": "d3cd02cd9a0b7de631cca5ec9f68d1a59e6ddca7c545c7e10b186d1bc08a2058",
+    "x86_64-pc-windows-msvc/hrf_api.dll": "ec59f3b327bd52b1e31d48b95e912363713f9622b07dc1de359599e8c45169a6",
+    "x86_64-unknown-linux-gnu/libhrf_api.so": "73e8812fa3b39cd034b83e3c4e0b6f5a2d621f97dd962d6777bf731c35ad9e23"
+  }
 }
