@@ -79,6 +79,9 @@ jobs:
         with:
           pattern: native-*
           path: artifacts
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: '3.13.0'
       - name: Assemble the release, requiring agreement where two hosts built the same file
         run: |
           mkdir -p sums release
@@ -112,13 +115,15 @@ jobs:
         run: |
           version=${GITHUB_REF_NAME#native-}
           url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME"
-          python3 tool/write_prebuilt_hashes.py "$version" "$url" hook/prebuilt_hashes.json artifacts/native-*/SHA256SUMS*
+          # Not `dart run`: that would run this package's build hook first.
+          dart tool/write_prebuilt_hashes.dart "$version" "$url" hook/prebuilt_hashes.json artifacts/native-*/SHA256SUMS*
           # Commit on the branch the tagged commit lives on, preferring the default branch.
           default=${{ github.event.repository.default_branch }}
           branches=$(git branch -r --contains "$GITHUB_SHA" --format='%(refname:short)' | sed 's|^origin/||' | grep -vx HEAD || true)
           if echo "$branches" | grep -qx "$default"; then branch=$default; else branch=$(echo "$branches" | head -1); fi
           [ -n "$branch" ] || { echo "No branch contains $GITHUB_SHA" >&2; exit 1; }
           git checkout -B "$branch" "origin/$branch"
+          git add hook/prebuilt_hashes.json
           git -c user.name='github-actions[bot]' -c user.email='github-actions[bot]@users.noreply.github.com' \
-            commit -am "Record prebuilt hashes for $GITHUB_REF_NAME"
+            commit -m "Record prebuilt hashes for $GITHUB_REF_NAME"
           git push origin "HEAD:$branch"

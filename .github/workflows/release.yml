@@ -31,7 +31,7 @@ jobs:
       - name: Check whether a native release is recorded
         id: release
         shell: bash
-        run: echo "recorded=$(python3 -c "import json; print(str(json.load(open('hook/prebuilt_hashes.json'))['nativeVersion'] is not None).lower())")" >> "$GITHUB_OUTPUT"
+        run: echo "recorded=$(jq -r '.nativeVersion != null' hook/prebuilt_hashes.json)" >> "$GITHUB_OUTPUT"
       - run: dart test
         if: runner.os != 'Windows' || steps.release.outputs.recorded == 'true'
       - name: Rust tests
