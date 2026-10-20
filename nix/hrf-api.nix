@@ -372,6 +372,9 @@ in
     # No C compiler from nixpkgs: Apple targets must link with Xcode's.
     apple = pkgs.mkShellNoCC {
       packages = [ rust pkgs.jq pkgs.rsync ];
+      # The same fixed host as the pure derivations, so crate metadata does
+      # not depend on the Mac that builds.
+      RUSTC_WRAPPER = rustcWrapper;
     };
   };
 }

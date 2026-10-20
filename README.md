@@ -18,26 +18,41 @@ The example requires iOS 15+ or macOS 13+ for Apple builds.
 
 Regenerate bindings with `dart run ffigen --config ffigen.yaml` (requires libclang).
 
-## Reproducible builds
+## Native library
 
-`build-config.json` holds what every build must agree on: the Rust version, the
-deployment floors (macOS 12, iOS 15, Android API 24, glibc 2.28), the canonical
-prefixes that source paths are remapped onto, and the target list. The hook
-lowers a consumer's deployment target to the floor whenever it is at or above
-it, so the library it builds can match the reference build byte for byte.
+The hook obtains the Rust library in one of three modes, chosen with the
+`build` user-define in the consuming app's `pubspec.yaml` or with the
+`FROSTDART_BUILD` environment variable, which takes precedence:
 
-To check that a build does not depend on where it runs:
-
-```sh
-dart run tool/check_reproducibility.dart [--target <triple>] [--keep]
+```yaml
+hooks:
+  user_defines:
+    frostdart:
+      build: prebuilt   # the default; or source, or dev
 ```
 
-It builds the library twice from two temporary copies of `src/serai` and fails
-on any differing output or any embedded machine-specific path. On Windows the
-MSVC static library is skipped: lib.exe records absolute object paths as member
-names, and only the DLL is part of the reference set. Identical output
-across machines additionally requires identical toolchains: the pinned Rust
-release and, for Apple targets, the same Xcode and SDK version.
+- `prebuilt` downloads the library published for the pinned native release
+  and verifies it against the hash recorded in `hook/prebuilt_hashes.json`.
+  A mismatch is an error, never a fallback. Downloads are cached by hash.
+- `source` builds the library with the Nix flake, the same build CI uses, and
+  verifies it against the same hash. Apple targets require the pinned Xcode.
+- `dev` builds with the Nix flake but skips the Xcode pin and the hash check,
+  for working on the Rust code.
+
+Only dynamic libraries are provided, built for macOS 12, iOS 15, Android API
+24, and glibc 2.28 at minimum. The floors, the canonical path prefixes, and
+the toolchain versions live in `build-config.json`.
+
+### Native releases
+
+Pushing a `native-<version>` tag runs `.github/workflows/native-release.yml`:
+it builds every sandboxed target, rebuilds each from scratch, publishes the
+dynamic libraries and a SHA256SUMS as a GitHub release, and commits their
+hashes to `hook/prebuilt_hashes.json` on the branch the tag was cut from. The
+hashes shipped in a package version therefore pin the exact bytes consumers
+receive, and anyone can rebuild the tag with Nix and compare. Apple libraries
+are built on a Mac with the pinned Xcode and added with
+`tool/publish_apple.sh native-<version>`.
 
 ### Reference builds with Nix
 
@@ -83,6 +98,6 @@ and builds the Apple targets on the macOS runner with the pinned Xcode. A final
 job runs `tool/compare_sums.sh` over every host's SHA256SUMS and fails if a
 target built on more than one host differs. Each host also records its
 checksums and per-section digests on the orphan branch `ci-sums`, under
-`<short commit>/<host>/`, so results can be read with plain git. The existing test workflow also
-runs `tool/check_reproducibility.dart` on each OS to check the hook's own
-build path.
+`<short commit>/<host>/`, so results can be read with plain git. The test workflow builds through the
+hook in dev mode on Linux and macOS, and runs the Dart tests on Windows against
+the prebuilt library once a native release exists.

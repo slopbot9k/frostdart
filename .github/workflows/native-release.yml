@@ -1,0 +1,133 @@
+# Builds the native libraries for a native-<version> tag, publishes the
+# dynamic libraries as a GitHub release, and records their hashes in the
+# repository for the build hook to pin.
+name: Native release
+
+on:
+  push:
+    tags: ['native-*']
+
+permissions:
+  contents: write
+
+jobs:
+  linux:
+    name: Linux host
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: DeterminateSystems/nix-installer-action@v23
+      - name: Build every sandboxed target
+        run: tool/ci_annotate.sh "nix build all" nix build .#all -L --out-link result
+      - name: Rebuild each target from scratch and compare
+        run: |
+          for dir in result/*/; do
+            tool/ci_annotate.sh "rebuild $(basename "$dir")" nix build ".#$(basename "$dir")" --rebuild --no-link -L
+          done
+      - name: Collect the dynamic libraries
+        run: |
+          mkdir -p out
+          cp result/SHA256SUMS out/SHA256SUMS
+          for lib in result/*/*.so result/*/*.dll; do
+            cp "$lib" "out/$(basename "$(dirname "$lib")")-$(basename "$lib")"
+          done
+      - uses: actions/upload-artifact@v7
+        with:
+          name: native-linux
+          path: out
+
+  macos:
+    name: macOS host
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v7
+      - uses: DeterminateSystems/nix-installer-action@v23
+      - name: Build every sandboxed target
+        run: tool/ci_annotate.sh "nix build all" nix build .#all -L --out-link result
+      - name: Rebuild each target from scratch and compare
+        run: |
+          for dir in result/*/; do
+            tool/ci_annotate.sh "rebuild $(basename "$dir")" nix build ".#$(basename "$dir")" --rebuild --no-link -L
+          done
+      - name: Select the pinned Xcode
+        run: |
+          xcode=$(jq -r .toolchains.xcode build-config.json)
+          app="/Applications/Xcode_${xcode}.app"
+          if [ ! -d "$app" ]; then
+            echo "Xcode $xcode is not installed on this runner. Available:" >&2
+            ls -d /Applications/Xcode*.app >&2
+            exit 1
+          fi
+          sudo xcode-select -s "$app"
+          xcodebuild -version
+      - name: Build the Apple targets with the pinned Xcode
+        run: tool/ci_annotate.sh "apple targets" nix develop .#apple --command nix/build-apple.sh apple
+      - name: Collect the dynamic libraries
+        run: |
+          mkdir -p out
+          cp result/SHA256SUMS out/SHA256SUMS
+          cp apple/SHA256SUMS.apple out/SHA256SUMS.apple
+          for lib in result/*/*.so result/*/*.dll apple/*/*.dylib; do
+            cp "$lib" "out/$(basename "$(dirname "$lib")")-$(basename "$lib")"
+          done
+      - uses: actions/upload-artifact@v7
+        with:
+          name: native-macos
+          path: out
+
+  publish:
+    name: Publish and record hashes
+    needs: [linux, macos]
+    if: ${{ !cancelled() && needs.linux.result == 'success' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: native-*
+          path: artifacts
+      - name: Assemble the release, requiring agreement where two hosts built the same file
+        run: |
+          mkdir -p sums release
+          for dir in artifacts/native-*; do
+            host=$(basename "$dir")
+            mkdir -p "sums/$host"
+            cp "$dir"/SHA256SUMS* "sums/$host/"
+          done
+          tool/ci_annotate.sh "cross-host agreement" tool/compare_sums.sh sums
+          for dir in artifacts/native-*; do
+            for file in "$dir"/*; do
+              case "$file" in *SHA256SUMS*) continue ;; esac
+              name=$(basename "$file")
+              if [ -e "release/$name" ]; then
+                cmp "release/$name" "$file" || { echo "$name differs between hosts" >&2; exit 1; }
+              else
+                cp "$file" release/
+              fi
+            done
+          done
+          (cd release && sha256sum -- * > SHA256SUMS)
+          ls -la release
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" \
+            --notes "Native libraries built reproducibly from $GITHUB_SHA. Verify with nix build $GITHUB_REPOSITORY/$GITHUB_SHA#all and compare SHA256SUMS." \
+            release/*
+      - name: Record the hashes in the repository
+        run: |
+          version=${GITHUB_REF_NAME#native-}
+          url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME"
+          python3 tool/write_prebuilt_hashes.py "$version" "$url" hook/prebuilt_hashes.json artifacts/native-*/SHA256SUMS*
+          # Commit on the branch the tagged commit lives on, preferring the default branch.
+          default=${{ github.event.repository.default_branch }}
+          branches=$(git branch -r --contains "$GITHUB_SHA" --format='%(refname:short)' | sed 's|^origin/||' | grep -vx HEAD || true)
+          if echo "$branches" | grep -qx "$default"; then branch=$default; else branch=$(echo "$branches" | head -1); fi
+          [ -n "$branch" ] || { echo "No branch contains $GITHUB_SHA" >&2; exit 1; }
+          git checkout -B "$branch" "origin/$branch"
+          git -c user.name='github-actions[bot]' -c user.email='github-actions[bot]@users.noreply.github.com' \
+            commit -am "Record prebuilt hashes for $GITHUB_REF_NAME"
+          git push origin "HEAD:$branch"

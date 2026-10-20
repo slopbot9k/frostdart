@@ -16,17 +16,24 @@ jobs:
         os: [ubuntu-24.04, ubuntu-24.04-arm, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: dart-lang/setup-dart@v1
         with:
           sdk: '3.13.0'
       - uses: dtolnay/rust-toolchain@1.99.1
+        if: matrix.os == 'ubuntu-24.04'
+      # The hook builds through the Nix flake; before the first native
+      # release that is the only path, and it is unavailable on Windows.
+      - uses: DeterminateSystems/nix-installer-action@v23
+        if: runner.os != 'Windows'
       - run: dart pub get --no-example
       - run: dart analyze lib test hook tool
-      - run: dart test
-      - name: Build twice from different directories and compare
+      - name: Check whether a native release is recorded
+        id: release
         shell: bash
-        run: tool/ci_annotate.sh "two-directory check" dart run tool/check_reproducibility.dart
+        run: echo "recorded=$(python3 -c "import json; print(str(json.load(open('hook/prebuilt_hashes.json'))['nativeVersion'] is not None).lower())")" >> "$GITHUB_OUTPUT"
+      - run: dart test
+        if: runner.os != 'Windows' || steps.release.outputs.recorded == 'true'
       - name: Rust tests
         if: matrix.os == 'ubuntu-24.04'
         working-directory: src/serai/hrf

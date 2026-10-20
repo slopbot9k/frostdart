@@ -10,9 +10,9 @@ dependencies:
   ffi: ^2.0.1
   hooks: ^2.2.0
   code_assets: ^1.2.1
+  crypto: ^3.0.7
 
 dev_dependencies:
   test: ^1.26.3
-  crypto: ^3.0.7
   ffigen: ^21.0.0
   flutter_lints: ^2.0.0

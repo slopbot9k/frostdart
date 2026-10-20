@@ -20,15 +20,34 @@ if [ ${#targets[@]} -eq 0 ]; then
 fi
 
 # The SDK version is embedded in every Mach-O, so the Xcode version is part
-# of the reference environment.
+# of the reference environment. FROSTDART_ANY_XCODE=1 builds with whatever
+# xcode-select points at, Command Line Tools included; that output is not
+# expected to match the reference.
 unset SDKROOT
 export DEVELOPER_DIR=${DEVELOPER_DIR:-$(xcode-select -p)}
-expected_xcode=$(jq -r .toolchains.xcode "$config")
-actual_xcode=$(xcodebuild -version | awk 'NR == 1 { print $2 }')
-if [ "$actual_xcode" != "$expected_xcode" ]; then
-  echo "Xcode $expected_xcode is required; found $actual_xcode at $DEVELOPER_DIR" >&2
-  exit 1
+if [ "${FROSTDART_ANY_XCODE:-}" = 1 ]; then
+  echo "frostdart: building with the toolchain at $DEVELOPER_DIR, not the pinned Xcode" >&2
+else
+  expected_xcode=$(jq -r .toolchains.xcode "$config")
+  actual_xcode=$(xcodebuild -version 2>/dev/null | awk 'NR == 1 { print $2 }')
+  if [ "$actual_xcode" != "$expected_xcode" ]; then
+    echo "Xcode $expected_xcode is required; found '$actual_xcode' at $DEVELOPER_DIR" >&2
+    exit 1
+  fi
 fi
+
+# The flake's shell puts nixpkgs' clang on PATH as cc; Apple targets, and the
+# build scripts compiled for the host while building them, must use the
+# toolchain xcode-select points at instead.
+export CC=/usr/bin/cc CXX=/usr/bin/c++ AR=/usr/bin/ar
+export PATH=/usr/bin:/bin:$PATH
+unset NIX_CFLAGS_COMPILE NIX_LDFLAGS
+while IFS= read -r apple_target; do
+  variable=${apple_target//-/_}
+  upper=$(printf '%s' "$variable" | tr '[:lower:]' '[:upper:]')
+  export "CC_$variable=/usr/bin/cc" "CXX_$variable=/usr/bin/c++" "AR_$variable=/usr/bin/ar"
+  export "CARGO_TARGET_${upper}_LINKER=/usr/bin/cc"
+done < <(jq -r '.targets[] | select(contains("-apple-"))' "$config")
 
 work=$(cd "$(mktemp -d)" && pwd -P)
 trap 'rm -rf "$work"' EXIT
@@ -69,6 +88,7 @@ CARGO_ENCODED_RUSTFLAGS=$(IFS=$'\x1f'; printf '%s' "${rustflags[*]}")
 for target in "${targets[@]}"; do
   export "CFLAGS_${target//-/_}=${cflags[*]}"
   cargo build --locked --offline --release --lib --package hrf-api \
+    --manifest-path "$work/serai/hrf/Cargo.toml" \
     --target "$target" --target-dir "$work/target"
   mkdir -p "$out/$target"
   cp "$work/target/$target/release/libhrf_api.dylib" \
