@@ -8,6 +8,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 # A newer push to the same branch supersedes the runs in progress.
 concurrency:
   group: reproducible-${{ github.ref }}
@@ -17,27 +20,18 @@ jobs:
   linux:
     name: Linux x86_64 host
     runs-on: ubuntu-24.04
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@v7
       - uses: DeterminateSystems/nix-installer-action@v23
       - name: Build every target this host can build
-        run: tool/ci_annotate.sh "nix build all" nix build .#all -L --out-link result
+        run: nix build .#all -L --out-link result
       - name: Rebuild each target from scratch and compare
         run: |
           for dir in result/*/; do
-            tool/ci_annotate.sh "rebuild $(basename "$dir")" nix build ".#$(basename "$dir")" --rebuild --no-link -L
+            nix build ".#$(basename "$dir")" --rebuild --no-link -L
           done
       - name: Collect outputs
-        run: |
-          mkdir -p out && cp -RL result/. out/
-          python3 tool/section_hashes.py out > out/SECTIONS.txt 2> out/SECTIONS.err || true
-          cat out/SECTIONS.err
-      - name: Record the checksums on the ci-sums branch
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: tool/ci_record_sums.sh out linux-x86_64
+        run: mkdir -p out && cp -RL result/. out/
       - uses: actions/upload-artifact@v7
         with:
           name: sums-linux-x86_64
@@ -47,27 +41,18 @@ jobs:
   linux-arm64:
     name: Linux aarch64 host
     runs-on: ubuntu-24.04-arm
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@v7
       - uses: DeterminateSystems/nix-installer-action@v23
       - name: Build every target this host can build
-        run: tool/ci_annotate.sh "nix build all" nix build .#all -L --out-link result
+        run: nix build .#all -L --out-link result
       - name: Rebuild each target from scratch and compare
         run: |
           for dir in result/*/; do
-            tool/ci_annotate.sh "rebuild $(basename "$dir")" nix build ".#$(basename "$dir")" --rebuild --no-link -L
+            nix build ".#$(basename "$dir")" --rebuild --no-link -L
           done
       - name: Collect outputs
-        run: |
-          mkdir -p out && cp -RL result/. out/
-          python3 tool/section_hashes.py out > out/SECTIONS.txt 2> out/SECTIONS.err || true
-          cat out/SECTIONS.err
-      - name: Record the checksums on the ci-sums branch
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: tool/ci_record_sums.sh out linux-aarch64
+        run: mkdir -p out && cp -RL result/. out/
       - uses: actions/upload-artifact@v7
         with:
           name: sums-linux-aarch64
@@ -78,31 +63,22 @@ jobs:
     name: macOS host
     # Xcode 27 lives on its own public-preview image, not on macos-26.
     runs-on: xcode-27
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@v7
       - uses: DeterminateSystems/nix-installer-action@v23
       - name: Build every sandboxed target
-        run: tool/ci_annotate.sh "nix build all" nix build .#all -L --out-link result
+        run: nix build .#all -L --out-link result
       - name: Rebuild each target from scratch and compare
         run: |
           for dir in result/*/; do
-            tool/ci_annotate.sh "rebuild $(basename "$dir")" nix build ".#$(basename "$dir")" --rebuild --no-link -L
+            nix build ".#$(basename "$dir")" --rebuild --no-link -L
           done
       - name: Collect outputs
-        run: |
-          mkdir -p out && cp -RL result/. out/
-          python3 tool/section_hashes.py out > out/SECTIONS.txt 2> out/SECTIONS.err || true
-          cat out/SECTIONS.err
+        run: mkdir -p out && cp -RL result/. out/
       - name: Select the pinned Xcode
         run: tool/select_xcode.sh
       - name: Build the Apple targets with the pinned Xcode
-        run: tool/ci_annotate.sh "apple targets" nix develop .#apple --command nix/build-apple.sh out
-      - name: Record the checksums on the ci-sums branch
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: tool/ci_record_sums.sh out macos-arm64
+        run: nix develop .#apple --command nix/build-apple.sh out
       - uses: actions/upload-artifact@v7
         with:
           name: sums-macos-arm64
@@ -112,8 +88,6 @@ jobs:
   windows:
     name: Windows host (WSL2)
     runs-on: windows-2025
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@v7
       - uses: Vampire/setup-wsl@v7
@@ -139,21 +113,12 @@ jobs:
           rm -rf ~/frostdart
           git clone -q "$workspace" ~/frostdart
           cd ~/frostdart
-          tool/ci_annotate.sh "nix build all" nix build .#all -L --out-link result
+          nix build .#all -L --out-link result
           for dir in result/*/; do
-            tool/ci_annotate.sh "rebuild $(basename "$dir")" nix build ".#$(basename "$dir")" --rebuild --no-link -L
+            nix build ".#$(basename "$dir")" --rebuild --no-link -L
           done
           mkdir -p "$workspace/out"
           cp -RL result/. "$workspace/out/"
-          python3 tool/section_hashes.py "$workspace/out" > "$workspace/out/SECTIONS.txt" 2> "$workspace/out/SECTIONS.err" || true
-          cat "$workspace/out/SECTIONS.err"
-      - name: Record the checksums on the ci-sums branch
-        shell: wsl-bash {0}
-        run: |
-          cd ~/frostdart
-          GITHUB_TOKEN='${{ github.token }}' GITHUB_REPOSITORY='${{ github.repository }}' \
-            GITHUB_SHA='${{ github.sha }}' GITHUB_RUN_ID='${{ github.run_id }}' \
-            tool/ci_record_sums.sh "$(wslpath -u '${{ github.workspace }}')/out" windows-wsl2
       - uses: actions/upload-artifact@v7
         with:
           name: sums-windows-wsl2
@@ -174,7 +139,7 @@ jobs:
       - name: Show what was downloaded
         run: find artifacts -maxdepth 3 | sort
       - name: Every target built on more than one host must match
-        run: tool/ci_annotate.sh "compare hosts" tool/compare_sums.sh artifacts
+        run: tool/compare_sums.sh artifacts
       - name: Fail if any host job failed
         if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
         run: exit 1

@@ -50,9 +50,9 @@ it builds every sandboxed target, rebuilds each from scratch, publishes the
 dynamic libraries and a SHA256SUMS as a GitHub release, and commits their
 hashes to `hook/prebuilt_hashes.json` on the branch the tag was cut from. The
 hashes shipped in a package version therefore pin the exact bytes consumers
-receive, and anyone can rebuild the tag with Nix and compare. Apple libraries
-are built on a Mac with the pinned Xcode and added with
-`tool/publish_apple.sh native-<version>`.
+receive, and anyone can rebuild the tag with Nix and compare. The Apple
+libraries come from the macOS job, which builds them with the pinned Xcode;
+the release is only published when both hosts succeed and agree.
 
 ### Reference builds with Nix
 
@@ -96,8 +96,6 @@ a Linux x86_64 runner, a Linux aarch64 runner, a macOS runner, and inside WSL2
 on a Windows runner, rebuilds each from scratch with `nix build --rebuild`,
 and builds the Apple targets on the macOS runner with the pinned Xcode. A final
 job runs `tool/compare_sums.sh` over every host's SHA256SUMS and fails if a
-target built on more than one host differs. Each host also records its
-checksums and per-section digests on the orphan branch `ci-sums`, under
-`<short commit>/<host>/`, so results can be read with plain git. The test workflow builds through the
-hook in dev mode on Linux and macOS, and runs the Dart tests on Windows against
-the prebuilt library once a native release exists.
+target built on more than one host differs. The test workflow builds through
+the hook in dev mode on Linux and macOS, and runs the Dart tests on Windows
+against the prebuilt library once a native release exists.

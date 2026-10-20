@@ -18,11 +18,11 @@ jobs:
       - uses: actions/checkout@v7
       - uses: DeterminateSystems/nix-installer-action@v23
       - name: Build every sandboxed target
-        run: tool/ci_annotate.sh "nix build all" nix build .#all -L --out-link result
+        run: nix build .#all -L --out-link result
       - name: Rebuild each target from scratch and compare
         run: |
           for dir in result/*/; do
-            tool/ci_annotate.sh "rebuild $(basename "$dir")" nix build ".#$(basename "$dir")" --rebuild --no-link -L
+            nix build ".#$(basename "$dir")" --rebuild --no-link -L
           done
       - name: Collect the dynamic libraries
         run: |
@@ -44,16 +44,16 @@ jobs:
       - uses: actions/checkout@v7
       - uses: DeterminateSystems/nix-installer-action@v23
       - name: Build every sandboxed target
-        run: tool/ci_annotate.sh "nix build all" nix build .#all -L --out-link result
+        run: nix build .#all -L --out-link result
       - name: Rebuild each target from scratch and compare
         run: |
           for dir in result/*/; do
-            tool/ci_annotate.sh "rebuild $(basename "$dir")" nix build ".#$(basename "$dir")" --rebuild --no-link -L
+            nix build ".#$(basename "$dir")" --rebuild --no-link -L
           done
       - name: Select the pinned Xcode
         run: tool/select_xcode.sh
       - name: Build the Apple targets with the pinned Xcode
-        run: tool/ci_annotate.sh "apple targets" nix develop .#apple --command nix/build-apple.sh apple
+        run: nix develop .#apple --command nix/build-apple.sh apple
       - name: Collect the dynamic libraries
         run: |
           mkdir -p out
@@ -70,7 +70,6 @@ jobs:
   publish:
     name: Publish and record hashes
     needs: [linux, macos]
-    if: ${{ !cancelled() && needs.linux.result == 'success' }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -88,7 +87,7 @@ jobs:
             mkdir -p "sums/$host"
             cp "$dir"/SHA256SUMS* "sums/$host/"
           done
-          tool/ci_annotate.sh "cross-host agreement" tool/compare_sums.sh sums
+          tool/compare_sums.sh sums
           for dir in artifacts/native-*; do
             for file in "$dir"/*; do
               case "$file" in *SHA256SUMS*) continue ;; esac
