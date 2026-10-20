@@ -76,7 +76,8 @@ jobs:
 
   macos:
     name: macOS host
-    runs-on: macos-26
+    # Xcode 27 lives on its own public-preview image, not on macos-26.
+    runs-on: xcode-27
     permissions:
       contents: write
     steps:
@@ -95,16 +96,7 @@ jobs:
           python3 tool/section_hashes.py out > out/SECTIONS.txt 2> out/SECTIONS.err || true
           cat out/SECTIONS.err
       - name: Select the pinned Xcode
-        run: |
-          xcode=$(jq -r .toolchains.xcode build-config.json)
-          app="/Applications/Xcode_${xcode}.app"
-          if [ ! -d "$app" ]; then
-            echo "Xcode $xcode is not installed on this runner. Available:" >&2
-            ls -d /Applications/Xcode*.app >&2
-            exit 1
-          fi
-          sudo xcode-select -s "$app"
-          xcodebuild -version
+        run: tool/select_xcode.sh
       - name: Build the Apple targets with the pinned Xcode
         run: tool/ci_annotate.sh "apple targets" nix develop .#apple --command nix/build-apple.sh out
       - name: Record the checksums on the ci-sums branch
