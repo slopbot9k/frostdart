@@ -73,3 +73,16 @@ host package's own clang and the darwin and Linux copies differ. On Windows, run
 with the checkout on the Linux filesystem. The first build of the Windows
 target reports the hash of the xwin SDK output; paste it into
 `toolchains.xwin.splatHash`.
+
+### Continuous verification
+
+`.github/workflows/reproducible.yml` builds the sandboxed targets with Nix on
+a Linux x86_64 runner, a Linux aarch64 runner, a macOS runner, and inside WSL2
+on a Windows runner, rebuilds each from scratch with `nix build --rebuild`,
+and builds the Apple targets on the macOS runner with the pinned Xcode. A final
+job runs `tool/compare_sums.sh` over every host's SHA256SUMS and fails if a
+target built on more than one host differs. Each host also records its
+checksums and per-section digests on the orphan branch `ci-sums`, under
+`<short commit>/<host>/`, so results can be read with plain git. The existing test workflow also
+runs `tool/check_reproducibility.dart` on each OS to check the hook's own
+build path.
