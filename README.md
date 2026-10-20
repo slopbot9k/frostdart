@@ -38,3 +38,38 @@ MSVC static library is skipped: lib.exe records absolute object paths as member
 names, and only the DLL is part of the reference set. Identical output
 across machines additionally requires identical toolchains: the pinned Rust
 release and, for Apple targets, the same Xcode and SDK version.
+
+### Reference builds with Nix
+
+`flake.nix` builds every non-Apple target in a sandbox from toolchains pinned
+by hash: the official Rust and zig releases, lld from nixpkgs for the Windows
+link, the Windows SDK fetched by xwin from a pinned manifest, and the Android
+NDK. The versions live in `build-config.json` under `toolchains`.
+
+Two details make the output independent of the build host. Cargo mixes
+rustc's host triple into the metadata hash of build scripts and proc macros,
+and from there into the symbol hash of nearly every crate, so the flake runs
+rustc through a wrapper that reports a fixed host for cargo's `rustc -vV`
+query. And C code is compiled by zig's bundled clang on every target, because
+nixpkgs' separately built clang emitted different code per host platform.
+
+```sh
+nix build .#x86_64-unknown-linux-gnu    # one target, output in result/lib
+nix build .#all                         # every target this host can build
+cat result/SHA256SUMS
+```
+
+Apple targets need the pinned Xcode on the host, so they are built by a script
+inside the flake's Apple shell, which checks the Xcode version first:
+
+```sh
+nix develop .#apple --command nix/build-apple.sh out
+```
+
+Linux and macOS hosts build the Linux, Android, and Windows targets; macOS
+also builds the Apple ones. Android builds link the Linux NDK package's
+`crtbegin` objects on every host, because Google compiles those with each
+host package's own clang and the darwin and Linux copies differ. On Windows, run the same commands inside WSL2
+with the checkout on the Linux filesystem. The first build of the Windows
+target reports the hash of the xwin SDK output; paste it into
+`toolchains.xwin.splatHash`.
