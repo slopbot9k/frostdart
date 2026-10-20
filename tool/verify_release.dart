@@ -4,8 +4,10 @@
 //   dart tool/verify_release.dart <platform>
 //
 // <platform> is linux, android, windows, macos, ios, or one target triple.
-// Needs Nix. macos and ios also need the pinned Xcode. On Windows, run it
-// inside WSL2. Builds land under result-verify/ in the checkout.
+// Needs Nix. macos and ios also need the pinned Xcode; if xcode-select
+// points at the Command Line Tools, set DEVELOPER_DIR to the Xcode bundle's
+// Contents/Developer. On Windows, run it inside WSL2. Builds land under
+// result-verify/ in the checkout.
 import 'dart:convert';
 import 'dart:io';
 
@@ -114,12 +116,21 @@ bool belongsTo(String target, String platform) => switch (platform) {
 Future<void> nix(Directory root, List<String> args) async {
   final process = await Process.start(
     'nix',
-    ['--extra-experimental-features', 'nix-command flakes', ...args],
+    args,
     workingDirectory: root.path,
+    environment: {'NIX_CONFIG': nixConfig()},
     mode: ProcessStartMode.inheritStdio,
   );
   final code = await process.exitCode;
   if (code != 0) fail('nix ${args.first} failed with exit code $code.');
+}
+
+/// Enables flakes for every Nix call, including the one the Apple build
+/// script makes itself, without touching the user's nix.conf.
+String nixConfig() {
+  const flakes = 'extra-experimental-features = nix-command flakes';
+  final existing = Platform.environment['NIX_CONFIG'];
+  return existing == null || existing.isEmpty ? flakes : '$existing\n$flakes';
 }
 
 /// Uses whichever checksum tool the host has; Nix is the only other need.

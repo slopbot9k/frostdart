@@ -59,6 +59,14 @@ Future<File> buildWithNix({
   return destination;
 }
 
+/// Enables flakes for every Nix call, including the one `build-apple.sh`
+/// makes itself, without touching the user's nix.conf.
+String _nixConfig() {
+  const flakes = 'extra-experimental-features = nix-command flakes';
+  final existing = Platform.environment['NIX_CONFIG'];
+  return existing == null || existing.isEmpty ? flakes : '$existing\n$flakes';
+}
+
 Future<String> _run(
   String executable,
   List<String> arguments, {
@@ -69,7 +77,7 @@ Future<String> _run(
     process = await Process.start(
       executable,
       arguments,
-      environment: environment,
+      environment: {...environment, 'NIX_CONFIG': _nixConfig()},
     );
   } on ProcessException {
     throw StateError(
