@@ -50,7 +50,9 @@ it builds every sandboxed target, rebuilds each from scratch, publishes the
 dynamic libraries and a SHA256SUMS as a GitHub release, and commits their
 hashes to `hook/prebuilt_hashes.json` on the branch the tag was cut from. The
 hashes shipped in a package version therefore pin the exact bytes consumers
-receive, and anyone can rebuild the tag with Nix and compare. The Apple
+receive, and anyone can rebuild one platform with Nix and compare:
+`dart tool/verify_release.dart linux` (or android, windows, macos, ios, or a
+single target triple), on any host with Nix, which on Windows means WSL2. The Apple
 libraries come from the macOS job, which builds them with the pinned Xcode;
 the release is only published when both hosts succeed and agree.
 
